@@ -1,0 +1,201 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <title>Making your first Phaser 3 Game - Part 1</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+//Hier maak ik het speelveld en heb ik ervoor gekozen om het speelvelt net zo groot als een gemiddeld beeldscherm te maken 1920 bij 1080.
+//Hiernaast pas ik vanuit de phaser library physics toe aan de game die later gebruikt gaan worden bij de charakters flesjes en flesjes bier.
+    var config = {
+        type: Phaser.AUTO,
+        width: 1920,
+        height: 1080,
+        physics:{
+            default:'arcade',
+            arcade: {
+                gravity: { y:300},
+                debug:false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+//Hier maak ik de variablen die ik nodig heb in de functies hieronder
+    var player;
+var stars;
+var bombs;
+var platforms;
+var cursors;
+var score = 0;
+var gameOver = false;
+var scoreText;
+
+    var game = new Phaser.Game(config);
+//Hier laad ik de verschillende afbeeldingen in vanuit mijn computer en geef ik ze een nieuwe naam. 
+    function preload ()
+    {
+        this.load.image('sky', 'assets/sky.png');
+        this.load.image('ground','assets/platform.png');
+        this.load.image('star', 'assets/hertog-jan-pilsener.png');
+        this.load.image('bomb', 'assets/bomb.png');
+        this.load.spritesheet('dude', 'assets/dude.png', { frameWidth: 32, frameHeight: 48 });
+    }
+//hier bouw ik het speelveld waar het spel in gaat plaatsvinden. 
+    function create ()
+    {
+        this.add.image(960,540,'sky').setScale(3)
+
+        platforms = this.physics.add.staticGroup();
+
+        platforms.create(800,950,'ground').setScale(6).refreshBody();
+        platforms.create(1600,700,'ground');
+        platforms.create(350,550,'ground');
+        platforms.create(750,220,'ground');
+        platforms.create(1600,430,'ground');
+    // hier voeg ik de character toe aan het spel
+player = this.physics.add.sprite(100,450,'dude');
+//hier bepala ik hoe hard de character springt en zeg ik dat hij niet door de wereld mag zakken en wat zijn graviteit is.
+player.setBounce(0.2);
+player.setCollideWorldBounds(true);
+player.body.setGravityY(200)
+
+// Hier laat ik het begin score bord zien
+scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '50px', fill: '#000' });
+
+//hier wijs ik de verschillende afbeeldingen van het character aan de verschillende bewegingen toe.
+//Bij left gebruikt hij de eerste 3 afbeeldingen
+//Bij turn gebruikt hij afbeelding 4
+//en bij rechts gebruikt hij afbeelding 5 tot en met 8
+this.anims.create({
+            key: 'left',
+            frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'turn',
+            frames: [ { key: 'dude', frame: 4 } ],
+            frameRate: 20
+        });
+
+        this.anims.create({
+            key: 'right',
+            frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        cursors = this.input.keyboard.createCursorKeys();
+
+        //Hier voeg ik de sterren toe ik heb ervoor gekozen om er 5 te laten verschijnen met stappen van 350 zodat ze mooi verspreid zijn.
+        stars = this.physics.add.group({
+            key: 'star',
+            repeat: 5,
+            setXY: { x: 12, y: 0, stepX: 350 }
+            
+        });
+// Hier laat ik de sterren een beetje stuiteren.
+        stars.children.iterate(function (child) {
+
+            child.setBounceY(Phaser.Math.FloatBetween(0.1, 0.1));
+
+        });// Hier voeg ik bommen toe aan het spel
+        bombs = this.physics.add.group();
+       
+// Hier vertel ik de game welke items met elkaar interactie moeten hebben en welke niet. 
+        this.physics.add.collider(player, platforms);
+        this.physics.add.collider(stars, platforms);
+
+        this.physics.add.overlap(player, stars, collectStar, null, this);
+    
+        this.physics.add.collider(bombs, platforms);
+        this.physics.add.collider(player, bombs, hitBomb, null, this);
+        
+
+    }
+// Hier vertel ik de game dat left arrow betekend naar links lopen en dat right arrow betekend naar rechts lopen en dat 
+//pijltje naar boven betekend springen.
+    function update ()
+    {
+        if (cursors.left.isDown)
+        {
+            player.setVelocityX(-1360);
+
+            player.anims.play('left', true);
+        }
+        else if (cursors.right.isDown)
+        {
+            player.setVelocityX(1360);
+
+            player.anims.play('right', true);
+        }
+        else
+        {
+            player.setVelocityX(0);
+
+            player.anims.play('turn');
+        }
+
+        if (cursors.up.isDown && player.body.touching.down)
+        {
+            player.setVelocityY(-630);
+        }
+    }
+// Hier laat ik sterren toevoegen aan de game
+    function collectStar (player, star)
+{
+    star.disableBody(true, true);
+
+    // Hier laat ik het scorebord zien dat automatisch update als je punten binnehaalt. 
+    score += 10;
+    scoreText.setText('Score: ' + score);
+
+    //Hier vertel ik het spel dat er nieuwe bierflesjes moeten komen als alle bierflesjes verzameld zijn
+    if (stars.countActive(true) === 0)
+    {
+        
+        stars.children.iterate(function (child) {
+            
+            child.enableBody(true, child.x, 0, true, true);
+
+        });
+
+    
+        var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+//Hier vertel ik het spel dat er een bom moet worden toegevoegd als alle bierflesjes gepakt zijn
+        var bomb = bombs.create(x, 16, 'bomb',);
+        bomb.setBounce(1);
+        bomb.setCollideWorldBounds(true);
+        bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+        bomb.allowGravity = false;
+
+
+    }
+}
+
+//Hier vertel ik het spel dat als de bomb en het character elkaar raken je gameover bent.
+    function hitBomb (player, bomb)
+    {
+        this.physics.pause();
+        player.setTint(0xff0000)
+        player.anims.play('turn');
+        gameOver=true;
+    }
+
+</script>
+
+</body>
+</html>
